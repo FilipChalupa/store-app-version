@@ -34,12 +34,18 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
     recognisable data block for the app.
     """
     blocks = _extract_callback_blocks(html)
+    if not blocks:
+        return None
     metadata = _find_metadata_block(blocks, app_id)
     if metadata is None:
         return None
 
+    # Version may live in a sibling block (Google sometimes splits app
+    # identity from version metadata). Fall back to scanning everything.
+    version = _find_version(metadata) or _find_version(list(blocks.values()))
+
     return {
-        "version": _find_version(metadata),
+        "version": version,
         "name": _find_title(metadata, app_id),
         "developer": _find_developer(metadata),
         "release_notes": _find_release_notes(metadata),

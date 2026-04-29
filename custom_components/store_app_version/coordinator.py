@@ -27,6 +27,41 @@ _LOGGER = logging.getLogger(__name__)
 ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup"
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
+COUNTRY_TO_LANG: dict[str, str] = {
+    "us": "en", "gb": "en", "ca": "en", "au": "en", "ie": "en", "nz": "en",
+    "in": "en", "sg": "en", "za": "en",
+    "cz": "cs", "sk": "sk",
+    "de": "de", "at": "de", "ch": "de",
+    "fr": "fr", "be": "fr", "lu": "fr",
+    "es": "es", "mx": "es", "ar": "es", "co": "es", "cl": "es", "pe": "es",
+    "it": "it",
+    "nl": "nl",
+    "pl": "pl",
+    "ru": "ru", "by": "ru",
+    "ua": "uk",
+    "br": "pt", "pt": "pt",
+    "jp": "ja",
+    "kr": "ko",
+    "cn": "zh", "tw": "zh", "hk": "zh",
+    "tr": "tr",
+    "se": "sv",
+    "no": "no",
+    "dk": "da",
+    "fi": "fi",
+    "hu": "hu",
+    "ro": "ro",
+    "bg": "bg",
+    "gr": "el",
+    "il": "he",
+    "id": "id",
+    "th": "th",
+    "vn": "vi",
+}
+
+
+def _country_to_lang(country: str) -> str:
+    return COUNTRY_TO_LANG.get(country.lower(), "en")
+
 
 class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetch app metadata from the configured store."""
@@ -106,7 +141,8 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _sync_fetch_play_store(self) -> dict[str, Any]:
         from google_play_scraper import app  # noqa: PLC0415
 
-        result = app(self.app_id, lang="en", country=self.country)
+        lang = _country_to_lang(self.country)
+        result = app(self.app_id, lang=lang, country=self.country)
         return {
             "version": result.get("version"),
             "name": result.get("title"),

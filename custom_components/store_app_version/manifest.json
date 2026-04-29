@@ -6,6 +6,6 @@
   "documentation": "https://github.com/FilipChalupa/store-app-version",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/FilipChalupa/store-app-version/issues",
-  "requirements": ["google-play-scraper==1.2.7"],
-  "version": "0.1.1"
+  "requirements": [],
+  "version": "0.2.0"
 }

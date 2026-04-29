@@ -21,6 +21,7 @@ from .const import (
     PLATFORM_APP_STORE,
     PLATFORM_PLAY_STORE,
 )
+from .play_store import PLAY_STORE_URL, parse_play_store_html
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,32 +134,40 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     async def _fetch_play_store(self) -> dict[str, Any]:
+        session = async_get_clientsession(self.hass)
+        lang = _country_to_lang(self.country)
+        params = {"id": self.app_id, "hl": lang, "gl": self.country}
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": f"{lang},en;q=0.5",
+        }
         try:
-            return await self.hass.async_add_executor_job(self._sync_fetch_play_store)
-        except Exception as err:  # noqa: BLE001 - scraper raises various
+            async with session.get(
+                PLAY_STORE_URL,
+                params=params,
+                timeout=HTTP_TIMEOUT,
+                headers=headers,
+            ) as resp:
+                if resp.status == 404:
+                    raise UpdateFailed(
+                        f"App '{self.app_id}' not found in Google Play "
+                        f"({self.country})"
+                    )
+                resp.raise_for_status()
+                html = await resp.text()
+        except aiohttp.ClientError as err:
             raise UpdateFailed(f"Google Play request failed: {err}") from err
 
-    def _sync_fetch_play_store(self) -> dict[str, Any]:
-        from google_play_scraper import app  # noqa: PLC0415
-
-        lang = _country_to_lang(self.country)
-        result = app(self.app_id, lang=lang, country=self.country)
-        return {
-            "version": result.get("version"),
-            "name": result.get("title"),
-            "developer": result.get("developer"),
-            "released": result.get("updated"),
-            "release_notes": result.get("recentChanges"),
-            "min_os_version": (
-                result.get("androidVersionText") or result.get("androidVersion")
-            ),
-            "size_bytes": None,
-            "rating": result.get("score"),
-            "rating_count": result.get("ratings"),
-            "url": result.get("url"),
-            "icon": result.get("icon"),
-            "installs": result.get("installs"),
-        }
+        parsed = parse_play_store_html(html, self.app_id)
+        if parsed is None:
+            raise UpdateFailed(
+                f"Could not locate metadata for '{self.app_id}' "
+                f"in Google Play ({self.country})"
+            )
+        return parsed
 
 
 def _to_int(value: Any) -> int | None:

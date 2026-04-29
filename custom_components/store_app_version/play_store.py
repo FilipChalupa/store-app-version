@@ -7,6 +7,7 @@ locates fields by content-based heuristics rather than fixed JSON paths.
 """
 from __future__ import annotations
 
+import html as _html
 import json
 import re
 from typing import Any, Callable, Iterator
@@ -25,6 +26,12 @@ _DATE_RE = re.compile(
 )
 _INSTALLS_RE = re.compile(r"^[\d\s,. ]+\+\s*$")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_OG_TITLE_RE = re.compile(
+    r'<meta\s+property="og:title"\s+content="([^"]*)"', re.IGNORECASE
+)
+_OG_IMAGE_RE = re.compile(
+    r'<meta\s+property="og:image"\s+content="([^"]*)"', re.IGNORECASE
+)
 
 
 def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
@@ -36,28 +43,46 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
     blocks = _extract_callback_blocks(html)
     if not blocks:
         return None
-    metadata = _find_metadata_block(blocks, app_id)
-    if metadata is None:
+
+    # The metadata for one app is split across multiple AF_initDataCallback
+    # blocks (e.g. version in ds:5, title in another ds:N, app_id maybe just
+    # in a tracking block). Treat the union of all blocks as a single search
+    # space and rely on content-based heuristics.
+    all_data: list[Any] = list(blocks.values())
+
+    if not _walk_match(all_data, lambda s: s == app_id):
         return None
 
-    # Version may live in a sibling block (Google sometimes splits app
-    # identity from version metadata). Fall back to scanning everything.
-    version = _find_version(metadata) or _find_version(list(blocks.values()))
-
     return {
-        "version": version,
-        "name": _find_title(metadata, app_id),
-        "developer": _find_developer(metadata),
-        "release_notes": _find_release_notes(metadata),
-        "min_os_version": _find_min_android(metadata),
+        "version": _find_version(all_data),
+        "name": _find_title(all_data, app_id) or _extract_og_title(html),
+        "developer": _find_developer(all_data),
+        "release_notes": _find_release_notes(all_data),
+        "min_os_version": _find_min_android(all_data),
         "size_bytes": None,
-        "rating": _find_rating(metadata),
-        "rating_count": _find_rating_count(metadata),
+        "rating": _find_rating(all_data),
+        "rating_count": _find_rating_count(all_data),
         "url": f"https://play.google.com/store/apps/details?id={app_id}",
-        "icon": _find_icon(metadata),
-        "released": _find_release_date(metadata),
-        "installs": _find_installs(metadata),
+        "icon": _find_icon(all_data) or _extract_og_image(html),
+        "released": _find_release_date(all_data),
+        "installs": _find_installs(all_data),
     }
+
+
+def _extract_og_title(html: str) -> str | None:
+    match = _OG_TITLE_RE.search(html)
+    if not match:
+        return None
+    title = _html.unescape(match.group(1)).strip()
+    return title or None
+
+
+def _extract_og_image(html: str) -> str | None:
+    match = _OG_IMAGE_RE.search(html)
+    if not match:
+        return None
+    url = _html.unescape(match.group(1)).strip()
+    return url or None
 
 
 def _extract_callback_blocks(html: str) -> dict[str, Any]:

@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Přidat sledovanou aplikaci",
+        "description": "Sleduj verzi aplikace v Apple App Store nebo Google Play.",
+        "data": {
+          "platform": "Store",
+          "app_id": "Identifikátor aplikace",
+          "country": "Kód země",
+          "scan_interval": "Interval aktualizace (minuty)"
+        },
+        "data_description": {
+          "app_id": "App Store: číselné ID (např. 544007664) nebo bundle ID (např. com.google.ios.youtube). Google Play: package name (např. com.google.android.youtube).",
+          "country": "Dvoupísmenný kód země podle ISO (např. us, cz, gb)."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Tahle aplikace už je pro zvolenou zemi sledovaná."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Upravit nastavení",
+        "data": {
+          "country": "Kód země",
+          "scan_interval": "Interval aktualizace (minuty)"
+        }
+      }
+    }
+  }
+}

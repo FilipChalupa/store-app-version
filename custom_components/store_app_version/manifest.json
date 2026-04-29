@@ -1,0 +1,11 @@
+{
+  "domain": "store_app_version",
+  "name": "Store App Version",
+  "config_flow": true,
+  "documentation": "https://github.com/FilipChalupa/store-app-version",
+  "issue_tracker": "https://github.com/FilipChalupa/store-app-version/issues",
+  "codeowners": ["@FilipChalupa"],
+  "iot_class": "cloud_polling",
+  "requirements": ["google-play-scraper==1.2.7"],
+  "version": "0.1.0"
+}

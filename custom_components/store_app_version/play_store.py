@@ -103,7 +103,7 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
         "rating": _find_rating(all_data),
         "rating_count": _find_rating_count(all_data),
         "url": f"https://play.google.com/store/apps/details?id={app_id}",
-        "icon": _find_icon(all_data) or _extract_og_image(html),
+        "icon": _extract_og_image(html) or _find_icon(all_data),
         "released": (
             _extract_label_value(html, _RELEASED_LABELS)
             or _extract_label_value(html, _UPDATED_LABELS)
@@ -132,7 +132,26 @@ def _extract_og_image(html: str) -> str | None:
     if not match:
         return None
     url = _html.unescape(match.group(1)).strip()
-    return url or None
+    return _normalize_googleusercontent_url(url) if url else None
+
+
+def _normalize_googleusercontent_url(url: str) -> str:
+    """Force a known-good size suffix on play-lh.googleusercontent.com URLs.
+
+    KNOWN BROKEN: the URLs returned here (with or without size suffix)
+    sometimes still 400 when fetched directly. Investigation showed that
+    neither ``<meta og:image>`` nor the first googleusercontent URL inside
+    the AF_initDataCallback data is reliably the app icon — Google appears
+    to gate some of these URLs by referrer or session cookie. Leaving the
+    extractor in place because for some apps it does work; needs a deeper
+    rewrite (probably parsing the rendered <img> tag from the visible
+    HTML) to be fully reliable. See README "Limitations".
+    """
+    if "googleusercontent.com" not in url:
+        return url
+    if "=" in url and "?" not in url:
+        url = url.split("=", 1)[0]
+    return f"{url}=s512"
 
 
 def _extract_developer_html(html: str) -> str | None:
@@ -302,7 +321,7 @@ def _find_icon(metadata: Any) -> str | None:
     """First googleusercontent image URL is almost always the icon."""
     for value in _walk_strings(metadata):
         if "googleusercontent.com" in value and value.startswith("https://"):
-            return value
+            return _normalize_googleusercontent_url(value)
     return None
 
 

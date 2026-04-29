@@ -32,6 +32,44 @@ _OG_TITLE_RE = re.compile(
 _OG_IMAGE_RE = re.compile(
     r'<meta\s+property="og:image"\s+content="([^"]*)"', re.IGNORECASE
 )
+_DEV_LINK_RE = re.compile(
+    r'href="(?:/store/apps/dev(?:eloper)?\?id=)[^"]+"[^>]*>([^<]+)</a>',
+    re.IGNORECASE,
+)
+_TITLE_SUFFIX_SEPARATORS = (" – ", " - ", " — ")
+_MIN_OS_LABELS = (
+    "Vyžaduje Android",
+    "Requires Android",
+    "Erfordert Android",
+    "Requiert Android",
+    "Requiere Android",
+    "Richiede Android",
+    "Vereist Android",
+    "Wymaga Androida",
+    "Requer o Android",
+    "Требуется Android",
+    "Потребує Android",
+)
+_RELEASED_LABELS = (
+    "Vydáno dne", "Released on",
+    "Veröffentlicht am",
+    "Date de publication",
+    "Fecha de lanzamiento",
+    "Data di rilascio",
+    "Data wydania",
+    "Дата выпуска",
+    "Дата випуску",
+)
+_UPDATED_LABELS = (
+    "Aktualizováno dne", "Updated on",
+    "Aktualisiert am",
+    "Date de mise à jour",
+    "Fecha de actualización",
+    "Data aggiornamento",
+    "Data aktualizacji",
+    "Дата обновления",
+    "Оновлено",
+)
 
 
 def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
@@ -55,16 +93,22 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
 
     return {
         "version": _find_version(all_data),
-        "name": _find_title(all_data, app_id) or _extract_og_title(html),
-        "developer": _find_developer(all_data),
+        "name": _extract_og_title(html) or _find_title(all_data, app_id),
+        "developer": _find_developer(all_data) or _extract_developer_html(html),
         "release_notes": _find_release_notes(all_data),
-        "min_os_version": _find_min_android(all_data),
+        "min_os_version": (
+            _find_min_android(all_data) or _extract_label_value(html, _MIN_OS_LABELS)
+        ),
         "size_bytes": None,
         "rating": _find_rating(all_data),
         "rating_count": _find_rating_count(all_data),
         "url": f"https://play.google.com/store/apps/details?id={app_id}",
         "icon": _find_icon(all_data) or _extract_og_image(html),
-        "released": _find_release_date(all_data),
+        "released": (
+            _extract_label_value(html, _RELEASED_LABELS)
+            or _extract_label_value(html, _UPDATED_LABELS)
+            or _find_release_date(all_data)
+        ),
         "installs": _find_installs(all_data),
     }
 
@@ -74,6 +118,12 @@ def _extract_og_title(html: str) -> str | None:
     if not match:
         return None
     title = _html.unescape(match.group(1)).strip()
+    if not title:
+        return None
+    for separator in _TITLE_SUFFIX_SEPARATORS:
+        if separator in title:
+            title = title.split(separator)[0].strip()
+            break
     return title or None
 
 
@@ -83,6 +133,39 @@ def _extract_og_image(html: str) -> str | None:
         return None
     url = _html.unescape(match.group(1)).strip()
     return url or None
+
+
+def _extract_developer_html(html: str) -> str | None:
+    match = _DEV_LINK_RE.search(html)
+    if not match:
+        return None
+    return _html.unescape(match.group(1)).strip() or None
+
+
+def _extract_label_value(html: str, labels: tuple[str, ...]) -> str | None:
+    """Find the value rendered next to a label in the "About this app" panel.
+
+    Play Store renders rows like::
+
+        <div ...>Verze</div><div ...>1.0.1</div>
+
+    The class names are obfuscated and change, but the structural pair
+    (label closing tag, then one or more wrapper tags, then a value) is
+    consistent.
+    """
+    for label in labels:
+        pattern = re.compile(
+            r">"
+            + re.escape(label)
+            + r"</[^>]+>(?:\s*<[^>]+>)+([^<]{1,200})<",
+            re.IGNORECASE,
+        )
+        match = pattern.search(html)
+        if match:
+            value = _html.unescape(match.group(1)).strip()
+            if value:
+                return value
+    return None
 
 
 def _extract_callback_blocks(html: str) -> dict[str, Any]:
@@ -143,32 +226,40 @@ def _find_version(metadata: Any) -> str | None:
     """Pick the most-likely version string out of all version-shaped strings."""
     candidates: list[tuple[str, list[str]]] = []
 
-    def walk(node: Any, sibling_strings: list[str]) -> None:
+    def walk(node: Any, ancestor_strings: list[str]) -> None:
         if isinstance(node, str):
             if _VERSION_RE.match(node):
-                candidates.append((node, sibling_strings))
+                candidates.append((node, ancestor_strings))
         elif isinstance(node, list):
-            siblings = [x for x in node if isinstance(x, str)]
+            new_ancestors = (
+                ancestor_strings + [x for x in node if isinstance(x, str)]
+            )[-30:]
             for item in node:
-                walk(item, siblings)
+                walk(item, new_ancestors)
         elif isinstance(node, dict):
+            new_ancestors = (
+                ancestor_strings
+                + [v for v in node.values() if isinstance(v, str)]
+            )[-30:]
             for value in node.values():
-                walk(value, sibling_strings)
+                walk(value, new_ancestors)
 
     walk(metadata, [])
 
     if not candidates:
         return None
 
-    # Prefer candidates whose enclosing array also contains a date —
+    # Prefer candidates whose ancestor array(s) also contain a date —
     # the "About this app" row pairs Version with Updated/Released.
-    for version, siblings in candidates:
-        if any(_DATE_RE.search(s) for s in siblings):
+    for version, ancestors in candidates:
+        if any(_DATE_RE.search(s) for s in ancestors):
             return version
 
-    # Otherwise return the most repeated one.
-    versions = [c[0] for c in candidates]
-    return max(set(versions), key=versions.count)
+    # Otherwise prefer the version with the most segments (app versions are
+    # typically X.Y.Z while min OS / API level have fewer segments).
+    unique = list({c[0] for c in candidates})
+    unique.sort(key=lambda v: (-v.count("."), -len(v)))
+    return unique[0]
 
 
 def _find_title(metadata: Any, app_id: str) -> str | None:
@@ -216,12 +307,17 @@ def _find_icon(metadata: Any) -> str | None:
 
 
 def _find_release_notes(metadata: Any) -> str | None:
-    """Release notes are an HTML string with <br> tags, usually shorter than the description."""
+    """Release notes are an HTML string with <br> tags, shorter than the description.
+
+    We only return something when at least two such strings exist (so we
+    can distinguish the description from release notes); otherwise the
+    single match is almost always the description and would be misleading.
+    """
     htmlish = [
         s for s in _walk_strings(metadata)
         if "<br" in s or "<p>" in s or "</p>" in s
     ]
-    if not htmlish:
+    if len(htmlish) < 2:
         return None
     htmlish.sort(key=len)
     return _strip_html(htmlish[0])
@@ -288,8 +384,9 @@ def _find_rating_count(metadata: Any) -> int | None:
 
 def _find_release_date(metadata: Any) -> str | None:
     for value in _walk_strings(metadata):
-        if _DATE_RE.fullmatch(value):
-            return value
+        match = _DATE_RE.search(value)
+        if match:
+            return match.group(0)
     return None
 
 

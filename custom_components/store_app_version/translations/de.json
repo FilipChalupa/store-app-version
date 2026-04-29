@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "App zum Verfolgen hinzufügen",
+        "description": "Verfolge die Version einer App im Apple App Store oder Google Play.",
+        "data": {
+          "platform": "Store",
+          "app_id": "App-Kennung",
+          "country": "Ländercode",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        },
+        "data_description": {
+          "app_id": "App Store: numerische ID (z. B. 544007664) oder Bundle-ID (z. B. com.google.ios.youtube). Google Play: Paketname (z. B. com.google.android.youtube).",
+          "country": "Zweistelliger ISO-Ländercode (z. B. us, cz, gb)."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Diese App wird bereits für das ausgewählte Land verfolgt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen aktualisieren",
+        "data": {
+          "country": "Ländercode",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    }
+  }
+}

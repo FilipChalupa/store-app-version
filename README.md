@@ -8,11 +8,11 @@ Each sensor exposes the current store version as its state and rich metadata (re
 
 - One sensor per app per platform — add as many as you like
 - Apple App Store via the official iTunes Lookup API (no API key)
-- Google Play via the [`google-play-scraper`](https://pypi.org/project/google-play-scraper/) Python library
+- Google Play via a built-in HTML parser — no third-party libraries
 - UI config flow — no YAML required
 - Configurable country/region (default `us`)
 - Configurable update interval (default 60 minutes, range 5 min – 1 week)
-- Czech and English translations
+- Translations: English, Czech, German, Spanish, French, Ukrainian
 
 ## Installation
 
@@ -58,14 +58,16 @@ A device named e.g. *YouTube (App Store)* with a single sensor `sensor.<app>_ver
 - **Attributes**:
   - `app_id`, `platform`, `country`
   - `name`, `developer`
-  - `released` — release date (ISO 8601 for App Store, epoch ms for Google Play)
+  - `released` — release date (ISO 8601 for App Store, locale-formatted string for Google Play)
   - `release_notes` — what's new in this version
   - `min_os_version`
   - `size_bytes` (App Store only)
   - `rating`, `rating_count`
   - `url` — link to the store listing
   - `icon` — URL of the app icon
-  - `installs` (Google Play only)
+  - `installs` (Google Play only — e.g. `"1,000,000+"`)
+
+Some Google Play attributes are extracted by content heuristics from the rendered store page; if Google changes the page layout some attributes may temporarily be `null` while the version is still detected reliably.
 
 ## Examples
 
@@ -112,10 +114,11 @@ content: |
 
 ## Limitations and notes
 
-- **Google Play has no official public API.** The integration relies on `google-play-scraper`, which parses the public store HTML. If Google changes the page structure, fetches may temporarily fail until the library is updated.
+- **Google Play has no official public API.** The integration scrapes the public store details page directly. If Google changes the page structure, fetches may temporarily return wrong data or fail until the parser is updated.
+- **"Varies with device" version.** Some apps publish multiple variants per device (Android App Bundle / dynamic delivery). For those apps Google Play does not expose a single version string and the sensor will reflect what the store shows.
 - **iTunes Lookup is rate-limited.** With the default 60-minute interval and a handful of apps you will not run into limits, but avoid setting an aggressive scan interval across many apps.
 - The integration polls in the cloud — it cannot detect a new version any faster than the configured update interval.
-- Country code matters: an app may have different versions in different App Store/Play Store regions.
+- Country code matters: an app may have different versions in different App Store/Play Store regions. The Play Store query language is auto-derived from the country (e.g. `cz` → `cs`, `de` → `de`, `us` → `en`); apps published only in a local language may need the matching country to expose full metadata.
 
 ## Troubleshooting
 
@@ -137,11 +140,12 @@ custom_components/store_app_version/
 ├── __init__.py        # entry setup + reload listener
 ├── manifest.json      # HA manifest
 ├── const.py           # domain & defaults
-├── coordinator.py     # iTunes Lookup + Play Store fetchers
+├── coordinator.py     # DataUpdateCoordinator + iTunes Lookup fetcher
+├── play_store.py      # Google Play HTML parser
 ├── config_flow.py     # UI config + options flow
 ├── sensor.py          # sensor entity
 ├── strings.json       # source strings (English)
-└── translations/      # en, cs
+└── translations/      # en, cs, de, es, fr, uk
 ```
 
 ## License

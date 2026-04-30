@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .app_store import ITUNES_LOOKUP_URL, parse_itunes_lookup_item
 from .const import (
     CONF_APP_ID,
     CONF_COUNTRY,
@@ -25,7 +26,6 @@ from .play_store import PLAY_STORE_URL, parse_play_store_html
 
 _LOGGER = logging.getLogger(__name__)
 
-ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup"
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
 COUNTRY_TO_LANG: dict[str, str] = {
@@ -118,20 +118,7 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"App '{self.app_id}' not found in App Store ({self.country})"
             )
 
-        item = results[0]
-        return {
-            "version": item.get("version"),
-            "name": item.get("trackName"),
-            "developer": item.get("artistName"),
-            "released": item.get("currentVersionReleaseDate"),
-            "release_notes": item.get("releaseNotes"),
-            "min_os_version": item.get("minimumOsVersion"),
-            "size_bytes": _to_int(item.get("fileSizeBytes")),
-            "rating": item.get("averageUserRating"),
-            "rating_count": item.get("userRatingCount"),
-            "url": item.get("trackViewUrl"),
-            "icon": item.get("artworkUrl512") or item.get("artworkUrl100"),
-        }
+        return parse_itunes_lookup_item(results[0])
 
     async def _fetch_play_store(self) -> dict[str, Any]:
         session = async_get_clientsession(self.hass)
@@ -168,12 +155,3 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 f"in Google Play ({self.country})"
             )
         return parsed
-
-
-def _to_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None

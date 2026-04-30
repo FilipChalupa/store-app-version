@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import RestoreSensor
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -29,7 +29,7 @@ async def async_setup_entry(
 
 
 class StoreAppVersionSensor(
-    CoordinatorEntity[StoreAppVersionCoordinator], SensorEntity
+    CoordinatorEntity[StoreAppVersionCoordinator], RestoreSensor
 ):
     """Sensor exposing the current store version of an app."""
 
@@ -44,6 +44,7 @@ class StoreAppVersionSensor(
     ) -> None:
         super().__init__(coordinator)
         self._entry = entry
+        self._restored_version: str | None = None
         platform = entry.data[CONF_PLATFORM]
         app_id = entry.data[CONF_APP_ID]
         country = coordinator.country
@@ -64,11 +65,26 @@ class StoreAppVersionSensor(
             entry_type=None,
         )
 
+    async def async_added_to_hass(self) -> None:
+        """Restore last known version after a Home Assistant restart."""
+        await super().async_added_to_hass()
+        last_data = await self.async_get_last_sensor_data()
+        if last_data is not None and last_data.native_value is not None:
+            self._restored_version = str(last_data.native_value)
+
     @property
     def native_value(self) -> str | None:
-        if not self.coordinator.data:
-            return None
-        return self.coordinator.data.get("version")
+        if self.coordinator.data:
+            current = self.coordinator.data.get("version")
+            if current:
+                return current
+        return self._restored_version
+
+    @property
+    def entity_picture(self) -> str | None:
+        if self.coordinator.data:
+            return self.coordinator.data.get("icon")
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

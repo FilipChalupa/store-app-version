@@ -12,7 +12,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture(scope="module")
 def kilomayo_html() -> str:
-    return (FIXTURES / "play_kilomayo_cz.html").read_text()
+    return (FIXTURES / "play_com_kilomayo_tv_application_cz.html").read_text()
 
 
 def test_returns_none_when_no_callback_blocks() -> None:

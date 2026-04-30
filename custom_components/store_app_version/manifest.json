@@ -1,11 +1,11 @@
 {
-  "domain": "store_app_version",
-  "name": "Store App Version",
-  "codeowners": ["@FilipChalupa"],
-  "config_flow": true,
-  "documentation": "https://github.com/FilipChalupa/store-app-version",
-  "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/FilipChalupa/store-app-version/issues",
-  "requirements": [],
-  "version": "0.3.0"
+	"domain": "store_app_version",
+	"name": "Store App Version",
+	"codeowners": ["@FilipChalupa"],
+	"config_flow": true,
+	"documentation": "https://github.com/FilipChalupa/store-app-version",
+	"iot_class": "cloud_polling",
+	"issue_tracker": "https://github.com/FilipChalupa/store-app-version/issues",
+	"requirements": [],
+	"version": "0.3.1"
 }

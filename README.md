@@ -12,6 +12,9 @@ Each sensor exposes the current store version as its state and rich metadata (re
 - UI config flow — no YAML required
 - Configurable country/region (default `us`)
 - Configurable update interval (default 60 minutes, range 5 min – 1 week)
+- App icon shown inline in Home Assistant UI (`entity_picture`)
+- Last known version restored across Home Assistant restarts
+- Built-in diagnostics download for support
 - Translations: English, Czech, German, Spanish, French, Ukrainian
 
 ## Installation
@@ -54,7 +57,8 @@ Country and update interval can be changed later via the integration's **Configu
 
 A device named e.g. *YouTube (App Store)* with a single sensor `sensor.<app>_version`.
 
-- **State**: current version string (e.g. `19.42.1`)
+- **State**: current version string (e.g. `19.42.1`). Persists across Home Assistant restarts (last known value is restored before the first refresh completes).
+- **Entity picture**: the app icon, shown inline next to the sensor in the Home Assistant UI.
 - **Attributes**:
   - `app_id`, `platform`, `country`
   - `name`, `developer`
@@ -115,6 +119,7 @@ content: |
 ## Limitations and notes
 
 - **Google Play has no official public API.** The integration scrapes the public store details page directly. If Google changes the page structure, fetches may temporarily return wrong data or fail until the parser is updated.
+- **Google Play app icon is sometimes broken.** The icon URL extracted from the store page sometimes returns HTTP 400 when fetched directly; for those apps the entity picture / `icon` attribute will fail to load. App Store icons are unaffected.
 - **"Varies with device" version.** Some apps publish multiple variants per device (Android App Bundle / dynamic delivery). For those apps Google Play does not expose a single version string and the sensor will reflect what the store shows.
 - **iTunes Lookup is rate-limited.** With the default 60-minute interval and a handful of apps you will not run into limits, but avoid setting an aggressive scan interval across many apps.
 - The integration polls in the cloud — it cannot detect a new version any faster than the configured update interval.
@@ -130,6 +135,7 @@ content: |
     logs:
       custom_components.store_app_version: debug
   ```
+- **Diagnostics dump** — for any wrong / missing attribute, open *Settings → Devices & Services*, find the integration entry, click ⋮ → *Download diagnostics*. The JSON contains the config entry and what the coordinator last fetched (including the last exception, if any) — attach it to a bug report.
 
 ## Development
 
@@ -140,13 +146,29 @@ custom_components/store_app_version/
 ├── __init__.py        # entry setup + reload listener
 ├── manifest.json      # HA manifest
 ├── const.py           # domain & defaults
-├── coordinator.py     # DataUpdateCoordinator + iTunes Lookup fetcher
-├── play_store.py      # Google Play HTML parser
+├── coordinator.py     # DataUpdateCoordinator (drives both fetchers)
+├── app_store.py       # iTunes Lookup mapping (pure, testable)
+├── play_store.py      # Google Play HTML parser (pure, testable)
 ├── config_flow.py     # UI config + options flow
-├── sensor.py          # sensor entity
+├── sensor.py          # sensor entity (RestoreSensor + entity_picture)
+├── diagnostics.py     # "Download diagnostics" payload
 ├── strings.json       # source strings (English)
 └── translations/      # en, cs, de, es, fr, uk
 ```
+
+### Tests
+
+```bash
+pip install -r requirements_test.txt
+pytest
+```
+
+Tests run offline against fixtures in `tests/fixtures/`. CI runs them on every push (`.github/workflows/test.yml`).
+
+### Helper scripts
+
+- `scripts/debug_play_store.py <package> [country]` — fetch a Play Store page and print exactly what the parser sees (callback blocks, version candidates, final extracted dict). Use this when an attribute is wrong for a specific app.
+- `scripts/capture_fixture.py <package> [country]` — fetch a Play Store page, strip everything except `<meta og:*>` and `AF_initDataCallback` blocks, and save it to `tests/fixtures/`. Use this to add a new test fixture.
 
 ## License
 

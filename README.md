@@ -6,15 +6,17 @@ Each sensor exposes the current store version as its state and rich metadata (re
 
 ## Features
 
-- One sensor per app per platform — add as many as you like
+- One device per app per platform — add as many as you like
 - Apple App Store via the official iTunes Lookup API (no API key)
-- Google Play via a built-in HTML parser — no third-party libraries
-- UI config flow — no YAML required
-- Configurable country/region (default `us`)
-- Configurable update interval (default 60 minutes, range 5 min – 1 week)
+- Google Play via a built-in HTML + JSON-LD parser — no third-party libraries
+- UI config flow with dropdown country selector — no YAML required
+- The app identifier is verified against the store at config time, so a typo is caught before the entry is created
+- Configurable country/region and update interval, default 60 minutes (5 min – 1 week)
 - App icon shown inline in Home Assistant UI (`entity_picture`)
 - Last known version restored across Home Assistant restarts
-- Built-in diagnostics download for support
+- "Refresh now" button (disabled by default) for ad-hoc / automation use
+- Last successful fetch timestamp (disabled by default) as a diagnostic sensor
+- Built-in diagnostics download + Repairs entries for persistent fetch failures
 - Translations: English, Czech, German, Spanish, French, Ukrainian
 
 ## Installation
@@ -41,10 +43,12 @@ Each config entry tracks **one app on one platform in one country**. To track th
 | --- | --- |
 | **Store** | Apple App Store or Google Play |
 | **App identifier** | See below |
-| **Country code** | Two-letter ISO code (e.g. `us`, `cz`, `gb`). Default `us`. |
+| **Country** | Dropdown selector, localized to your Home Assistant language. Default *United States*. |
 | **Update interval** | Minutes between refreshes. Default 60. |
 
-Country and update interval can be changed later via the integration's **Configure** button (options flow).
+Submitting the form runs a one-shot fetch against the configured store. If the app cannot be found (wrong identifier, wrong country, app not published there), the form rejects with a clear error instead of creating a permanently broken entry.
+
+Country and update interval can be changed later via the integration's **Configure** button (options flow). The same one-shot validation runs there too.
 
 ### App identifier
 
@@ -53,9 +57,19 @@ Country and update interval can be changed later via the integration's **Configu
 | Apple App Store | numeric track ID **or** bundle ID | `544007664` or `com.google.ios.youtube` | URL of the App Store listing — `apps.apple.com/us/app/youtube/id544007664` → `544007664` |
 | Google Play | package name | `com.google.android.youtube` | URL of the Play Store listing — `play.google.com/store/apps/details?id=com.google.android.youtube` → `com.google.android.youtube` |
 
-## Sensor
+## Entities
 
-A device named e.g. *YouTube (App Store)* with a single sensor `sensor.<app>_version`.
+Each app you add appears as a single device in Home Assistant — e.g. *YouTube (App Store)* — with three entities:
+
+| Entity | Type | Enabled by default | Purpose |
+| --- | --- | --- | --- |
+| `sensor.<app>_version` | sensor | yes | current store version + metadata |
+| `sensor.<app>_last_refresh` | sensor | no | timestamp of the last successful fetch |
+| `button.<app>_refresh_now` | button | no | trigger an immediate fetch instead of waiting for the next poll |
+
+Disabled entities can be enabled per-device under *Settings → Devices & Services → the app's device → Entities*.
+
+### Version sensor
 
 - **State**: current version string (e.g. `19.42.1`). Persists across Home Assistant restarts (last known value is restored before the first refresh completes).
 - **Entity picture**: the app icon, shown inline next to the sensor in the Home Assistant UI.
@@ -127,7 +141,8 @@ content: |
 
 ## Troubleshooting
 
-- **"App not found"** — verify the identifier and country. Some apps are not published in all regions.
+- **Repairs panel** — when a fetch fails persistently the integration creates an entry in *Settings → Repairs* with the app id, country, store and last error. The entry clears itself the moment the next fetch succeeds, so you'll see whether the failure is one-off or sticky.
+- **"App not found"** during config flow — the identifier or country was wrong, or the app isn't published in that region. The form points to the offending field; correct it and resubmit.
 - **Stale version** — Home Assistant logs (Settings → System → Logs) will show fetch errors for `store_app_version`. Increase log level with:
   ```yaml
   logger:
@@ -143,14 +158,15 @@ The integration is a standard Home Assistant custom component. Layout:
 
 ```
 custom_components/store_app_version/
-├── __init__.py        # entry setup + reload listener
+├── __init__.py        # entry setup + Repair issue lifecycle
 ├── manifest.json      # HA manifest
 ├── const.py           # domain & defaults
-├── coordinator.py     # DataUpdateCoordinator (drives both fetchers)
+├── coordinator.py     # DataUpdateCoordinator + module-level fetch helpers
 ├── app_store.py       # iTunes Lookup mapping (pure, testable)
-├── play_store.py      # Google Play HTML parser (pure, testable)
-├── config_flow.py     # UI config + options flow
-├── sensor.py          # sensor entity (RestoreSensor + entity_picture)
+├── play_store.py      # Google Play HTML + JSON-LD parser (pure, testable)
+├── config_flow.py     # UI config + options flow with live validation
+├── sensor.py          # version + last-refresh sensors
+├── button.py          # refresh-now button
 ├── diagnostics.py     # "Download diagnostics" payload
 ├── strings.json       # source strings (English)
 └── translations/      # en, cs, de, es, fr, uk
@@ -163,12 +179,32 @@ pip install -r requirements_test.txt
 pytest
 ```
 
-Tests run offline against fixtures in `tests/fixtures/`. CI runs them on every push (`.github/workflows/test.yml`).
+Default `pytest` runs the offline unit tests against fixtures in `tests/fixtures/` (~40 tests, ~0.2 s). Live tests against the real App Store / Google Play are marked `live` and skipped by default; run them with `pytest -m live`.
+
+### Lint
+
+```bash
+pip install ruff
+ruff check
+ruff format --check
+```
+
+Configured in `pyproject.toml`. `ruff format` rewrites style; `ruff check` flags lint issues.
 
 ### Helper scripts
 
 - `scripts/debug_play_store.py <package> [country]` — fetch a Play Store page and print exactly what the parser sees (callback blocks, version candidates, final extracted dict). Use this when an attribute is wrong for a specific app.
-- `scripts/capture_fixture.py <package> [country]` — fetch a Play Store page, strip everything except `<meta og:*>` and `AF_initDataCallback` blocks, and save it to `tests/fixtures/`. Use this to add a new test fixture.
+- `scripts/capture_fixture.py <package> [country]` — fetch a Play Store page, redact public Google API keys, and save it to `tests/fixtures/`. Use this to add a new test fixture.
+
+### CI workflows
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| `validate.yml` | push, PR | HACS + hassfest manifest validation |
+| `test.yml` | push, PR | offline pytest against fixtures |
+| `lint.yml` | push, PR | `ruff check` + `ruff format --check` |
+| `scraper-health.yml` | daily cron + manual | live tests against real stores — early warning when their format changes |
+| `release.yml` | tag push (`v*`) | creates a GitHub Release after sanity-checking the manifest version |
 
 ## License
 

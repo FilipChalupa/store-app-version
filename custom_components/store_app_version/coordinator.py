@@ -10,6 +10,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -21,6 +22,7 @@ from .const import (
     DEFAULT_COUNTRY,
     DOMAIN,
     PLATFORM_APP_STORE,
+    PLATFORM_LABELS,
     PLATFORM_PLAY_STORE,
 )
 from .play_store import PLAY_STORE_URL, parse_play_store_html
@@ -89,6 +91,29 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name=f"{DOMAIN}_{self.platform}_{self.app_id}_{self.country}",
             update_interval=update_interval,
+        )
+
+    @property
+    def device_id(self) -> str:
+        """Stable identifier for the per-app HA device.
+
+        Shared by all entities the integration creates (sensor + button)
+        so they appear under the same device in the UI.
+        """
+        return f"{self.platform}_{self.app_id}_{self.country}"
+
+    def build_device_info(self) -> DeviceInfo:
+        """Build the DeviceInfo for the per-app HA device."""
+        data = self.data or {}
+        app_name = data.get("name") or self.app_id
+        platform_label = PLATFORM_LABELS.get(self.platform, self.platform)
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.device_id)},
+            name=f"{app_name} ({platform_label})",
+            manufacturer=data.get("developer") or platform_label,
+            model=platform_label,
+            configuration_url=data.get("url"),
+            entry_type=None,
         )
 
     async def _async_update_data(self) -> dict[str, Any]:

@@ -39,6 +39,11 @@
       "last_refresh": {
         "name": "Zuletzt aktualisiert"
       }
+    },
+    "button": {
+      "refresh": {
+        "name": "Jetzt aktualisieren"
+      }
     }
   }
 }

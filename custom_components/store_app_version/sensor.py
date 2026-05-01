@@ -12,7 +12,6 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -34,30 +33,8 @@ async def async_setup_entry(
     async_add_entities(
         [
             StoreAppVersionSensor(coordinator, entry),
-            StoreAppLastRefreshSensor(coordinator, entry),
+            StoreAppLastRefreshSensor(coordinator),
         ]
-    )
-
-
-def _device_info(
-    coordinator: StoreAppVersionCoordinator, entry: ConfigEntry
-) -> tuple[str, DeviceInfo]:
-    platform = entry.data[CONF_PLATFORM]
-    app_id = entry.data[CONF_APP_ID]
-    country = coordinator.country
-    device_id = f"{platform}_{app_id}_{country}"
-
-    data = coordinator.data or {}
-    app_name = data.get("name") or app_id
-    platform_label = PLATFORM_LABELS.get(platform, platform)
-
-    return device_id, DeviceInfo(
-        identifiers={(DOMAIN, device_id)},
-        name=f"{app_name} ({platform_label})",
-        manufacturer=data.get("developer") or platform_label,
-        model=platform_label,
-        configuration_url=data.get("url"),
-        entry_type=None,
     )
 
 
@@ -78,9 +55,8 @@ class StoreAppVersionSensor(
         super().__init__(coordinator)
         self._entry = entry
         self._restored_version: str | None = None
-        device_id, device_info = _device_info(coordinator, entry)
-        self._attr_unique_id = f"{device_id}_version"
-        self._attr_device_info = device_info
+        self._attr_unique_id = f"{coordinator.device_id}_version"
+        self._attr_device_info = coordinator.build_device_info()
 
     async def async_added_to_hass(self) -> None:
         """Restore last known version after a Home Assistant restart."""
@@ -136,15 +112,10 @@ class StoreAppLastRefreshSensor(
     _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:clock-check-outline"
 
-    def __init__(
-        self,
-        coordinator: StoreAppVersionCoordinator,
-        entry: ConfigEntry,
-    ) -> None:
+    def __init__(self, coordinator: StoreAppVersionCoordinator) -> None:
         super().__init__(coordinator)
-        device_id, device_info = _device_info(coordinator, entry)
-        self._attr_unique_id = f"{device_id}_last_refresh"
-        self._attr_device_info = device_info
+        self._attr_unique_id = f"{coordinator.device_id}_last_refresh"
+        self._attr_device_info = coordinator.build_device_info()
 
     @property
     def native_value(self) -> datetime | None:

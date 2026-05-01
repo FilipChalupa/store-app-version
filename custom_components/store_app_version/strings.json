@@ -39,6 +39,11 @@
       "last_refresh": {
         "name": "Last refresh"
       }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh now"
+      }
     }
   }
 }

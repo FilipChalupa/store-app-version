@@ -39,6 +39,11 @@
       "last_refresh": {
         "name": "Poslední načtení"
       }
+    },
+    "button": {
+      "refresh": {
+        "name": "Načíst nyní"
+      }
     }
   }
 }

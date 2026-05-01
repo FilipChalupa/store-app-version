@@ -30,5 +30,15 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "version": {
+        "name": "Версія"
+      },
+      "last_refresh": {
+        "name": "Останнє оновлення"
+      }
+    }
   }
 }

@@ -30,5 +30,15 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "version": {
+        "name": "Versión"
+      },
+      "last_refresh": {
+        "name": "Última actualización"
+      }
+    }
   }
 }

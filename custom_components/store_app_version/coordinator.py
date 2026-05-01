@@ -1,7 +1,7 @@
 """Data update coordinator for Store App Version."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .app_store import ITUNES_LOOKUP_URL, parse_itunes_lookup_item
 from .const import (
@@ -82,6 +83,7 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             or DEFAULT_COUNTRY
         ).lower()
+        self.last_successful_fetch: datetime | None = None
         super().__init__(
             hass,
             _LOGGER,
@@ -91,10 +93,13 @@ class StoreAppVersionCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         if self.platform == PLATFORM_APP_STORE:
-            return await self._fetch_app_store()
-        if self.platform == PLATFORM_PLAY_STORE:
-            return await self._fetch_play_store()
-        raise UpdateFailed(f"Unknown platform: {self.platform}")
+            data = await self._fetch_app_store()
+        elif self.platform == PLATFORM_PLAY_STORE:
+            data = await self._fetch_play_store()
+        else:
+            raise UpdateFailed(f"Unknown platform: {self.platform}")
+        self.last_successful_fetch = dt_util.utcnow()
+        return data
 
     async def _fetch_app_store(self) -> dict[str, Any]:
         session = async_get_clientsession(self.hass)

@@ -1,10 +1,16 @@
 """Sensor platform for Store App Version."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import RestoreSensor
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+)
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -25,7 +31,34 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: StoreAppVersionCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([StoreAppVersionSensor(coordinator, entry)])
+    async_add_entities(
+        [
+            StoreAppVersionSensor(coordinator, entry),
+            StoreAppLastRefreshSensor(coordinator, entry),
+        ]
+    )
+
+
+def _device_info(
+    coordinator: StoreAppVersionCoordinator, entry: ConfigEntry
+) -> tuple[str, DeviceInfo]:
+    platform = entry.data[CONF_PLATFORM]
+    app_id = entry.data[CONF_APP_ID]
+    country = coordinator.country
+    device_id = f"{platform}_{app_id}_{country}"
+
+    data = coordinator.data or {}
+    app_name = data.get("name") or app_id
+    platform_label = PLATFORM_LABELS.get(platform, platform)
+
+    return device_id, DeviceInfo(
+        identifiers={(DOMAIN, device_id)},
+        name=f"{app_name} ({platform_label})",
+        manufacturer=data.get("developer") or platform_label,
+        model=platform_label,
+        configuration_url=data.get("url"),
+        entry_type=None,
+    )
 
 
 class StoreAppVersionSensor(
@@ -34,7 +67,7 @@ class StoreAppVersionSensor(
     """Sensor exposing the current store version of an app."""
 
     _attr_has_entity_name = True
-    _attr_name = "Version"
+    _attr_translation_key = "version"
     _attr_icon = "mdi:cellphone-arrow-down"
 
     def __init__(
@@ -45,25 +78,9 @@ class StoreAppVersionSensor(
         super().__init__(coordinator)
         self._entry = entry
         self._restored_version: str | None = None
-        platform = entry.data[CONF_PLATFORM]
-        app_id = entry.data[CONF_APP_ID]
-        country = coordinator.country
-        device_id = f"{platform}_{app_id}_{country}"
-
+        device_id, device_info = _device_info(coordinator, entry)
         self._attr_unique_id = f"{device_id}_version"
-
-        data = coordinator.data or {}
-        app_name = data.get("name") or app_id
-        platform_label = PLATFORM_LABELS.get(platform, platform)
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            name=f"{app_name} ({platform_label})",
-            manufacturer=data.get("developer") or platform_label,
-            model=platform_label,
-            configuration_url=data.get("url"),
-            entry_type=None,
-        )
+        self._attr_device_info = device_info
 
     async def async_added_to_hass(self) -> None:
         """Restore last known version after a Home Assistant restart."""
@@ -105,3 +122,30 @@ class StoreAppVersionSensor(
             "icon": data.get("icon"),
             "installs": data.get("installs"),
         }
+
+
+class StoreAppLastRefreshSensor(
+    CoordinatorEntity[StoreAppVersionCoordinator], SensorEntity
+):
+    """Diagnostic sensor exposing the last successful fetch timestamp."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "last_refresh"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:clock-check-outline"
+
+    def __init__(
+        self,
+        coordinator: StoreAppVersionCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        device_id, device_info = _device_info(coordinator, entry)
+        self._attr_unique_id = f"{device_id}_last_refresh"
+        self._attr_device_info = device_info
+
+    @property
+    def native_value(self) -> datetime | None:
+        return self.coordinator.last_successful_fetch

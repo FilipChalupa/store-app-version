@@ -46,6 +46,11 @@ async def async_get_config_entry_diagnostics(
             else None
         ),
         "last_update_success": coordinator.last_update_success,
+        "last_successful_fetch": (
+            coordinator.last_successful_fetch.isoformat()
+            if coordinator.last_successful_fetch
+            else None
+        ),
         "last_exception": (
             repr(coordinator.last_exception)
             if coordinator.last_exception

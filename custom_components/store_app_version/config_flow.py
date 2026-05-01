@@ -58,7 +58,19 @@ INTERVAL_SELECTOR = selector.NumberSelector(
 
 
 def _normalize_country(value: str) -> str:
+    """Normalize a country code for storage (lowercase ISO 3166-1 alpha-2)."""
     return (value or DEFAULT_COUNTRY).strip().lower()
+
+
+def _country_for_form(value: str | None) -> str:
+    """Country code as the HA CountrySelector wants it (uppercase).
+
+    Internally we store and request lowercase, but the UI selector matches
+    against pycountry data which uses uppercase ISO 3166-1 alpha-2 codes —
+    passing lowercase makes the dropdown render with no value selected and
+    the form rejects on submit.
+    """
+    return (value or DEFAULT_COUNTRY).strip().upper()
 
 
 class StoreAppVersionConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -115,7 +127,7 @@ class StoreAppVersionConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_APP_ID, default=defaults.get(CONF_APP_ID, vol.UNDEFINED)): str,
                 vol.Required(
                     CONF_COUNTRY,
-                    default=defaults.get(CONF_COUNTRY, DEFAULT_COUNTRY),
+                    default=_country_for_form(defaults.get(CONF_COUNTRY)),
                 ): COUNTRY_SELECTOR,
                 vol.Required(
                     CONF_SCAN_INTERVAL,
@@ -177,7 +189,9 @@ class StoreAppVersionOptionsFlow(OptionsFlow):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_COUNTRY, default=current_country): COUNTRY_SELECTOR,
+                vol.Required(
+                    CONF_COUNTRY, default=_country_for_form(current_country)
+                ): COUNTRY_SELECTOR,
                 vol.Required(CONF_SCAN_INTERVAL, default=current_interval): INTERVAL_SELECTOR,
             }
         )

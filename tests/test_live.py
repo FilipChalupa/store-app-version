@@ -10,15 +10,15 @@ them daily to detect when Apple or Google change their response shape
 and our parsers start producing wrong results — long before users hit
 it. A failure here is the early-warning bell.
 """
+
 from __future__ import annotations
 
 import json
 import urllib.parse
 import urllib.request
 
-import pytest
-
 import play_store
+import pytest
 from app_store import parse_itunes_lookup_item
 
 # Google's own apps are stable test targets — they're not going to be
@@ -55,28 +55,21 @@ def test_play_store_youtube_us() -> None:
     assert play_store._VERSION_RE.match(result["version"]), (
         f"Extracted version {result['version']!r} does not match the version regex"
     )
-    assert "." in result["version"], (
-        f"Suspicious version {result['version']!r} (only one segment)"
-    )
+    assert "." in result["version"], f"Suspicious version {result['version']!r} (only one segment)"
     assert result["name"], "No app name extracted"
-    assert "YouTube" in result["name"], (
-        f"Unexpected app name {result['name']!r}"
-    )
+    assert "YouTube" in result["name"], f"Unexpected app name {result['name']!r}"
     assert result["url"].endswith(f"id={PLAY_TEST_PACKAGE}")
 
 
 @pytest.mark.live
 def test_app_store_youtube_us() -> None:
     """The iTunes Lookup API still returns YouTube with the expected shape."""
-    url = (
-        "https://itunes.apple.com/lookup?"
-        + urllib.parse.urlencode({"bundleId": APPLE_TEST_BUNDLE, "country": "us"})
+    url = "https://itunes.apple.com/lookup?" + urllib.parse.urlencode(
+        {"bundleId": APPLE_TEST_BUNDLE, "country": "us"}
     )
     payload = json.loads(_fetch(url))
 
-    assert payload["resultCount"] >= 1, (
-        "iTunes Lookup returned no results for YouTube"
-    )
+    assert payload["resultCount"] >= 1, "iTunes Lookup returned no results for YouTube"
     item = parse_itunes_lookup_item(payload["results"][0])
 
     assert item["version"], "No version extracted"

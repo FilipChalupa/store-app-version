@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Capture a Google Play details page as a trimmed test fixture.
+"""Capture a Google Play details page as a sanitised test fixture.
 
-Fetches the public store page and writes only the parts our parser
-actually reads: the ``<meta og:title>`` and ``<meta og:image>`` tags
-and every ``AF_initDataCallback({...});`` block. Everything else
-(Google internals, telemetry, JS bundles, frontend API keys) is
-dropped, both to keep the fixture small (~100 kB instead of ~1 MB)
-and to avoid baking opaque Google internals into the repository.
+Fetches the public store page and saves it verbatim, except for one
+sanitisation pass that redacts Google's public frontend API keys
+(``AIzaSy*``). Those keys aren't secrets — they're embedded in every
+google.com page and restricted by HTTP referrer — but pinning them
+into the repository is gratuitous, so we replace them with a clearly
+marked placeholder.
+
+The rest of the HTML is kept intact because our parser uses both the
+``AF_initDataCallback`` JSON blocks and the rendered "About this app"
+HTML (label-value pairs like ``Verze 1.0.1``, ``Vyžaduje Android …``).
+Stripping aggressively breaks fixture-driven tests for those fields.
 
 Usage:
     python scripts/capture_fixture.py <package_name> [country]
@@ -17,6 +22,7 @@ Examples:
 
 Writes to ``tests/fixtures/play_<package>_<country>.html``.
 """
+
 from __future__ import annotations
 
 import re
@@ -29,25 +35,42 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 
 COUNTRY_TO_LANG = {
-    "us": "en", "gb": "en", "ca": "en", "au": "en", "ie": "en", "nz": "en",
-    "in": "en", "sg": "en", "za": "en",
-    "cz": "cs", "sk": "sk",
-    "de": "de", "at": "de", "ch": "de",
-    "fr": "fr", "be": "fr", "lu": "fr",
-    "es": "es", "mx": "es", "ar": "es", "co": "es", "cl": "es",
-    "it": "it", "nl": "nl", "pl": "pl", "ua": "uk", "ru": "ru",
-    "br": "pt", "pt": "pt",
-    "jp": "ja", "kr": "ko", "cn": "zh", "tw": "zh",
+    "us": "en",
+    "gb": "en",
+    "ca": "en",
+    "au": "en",
+    "ie": "en",
+    "nz": "en",
+    "in": "en",
+    "sg": "en",
+    "za": "en",
+    "cz": "cs",
+    "sk": "sk",
+    "de": "de",
+    "at": "de",
+    "ch": "de",
+    "fr": "fr",
+    "be": "fr",
+    "lu": "fr",
+    "es": "es",
+    "mx": "es",
+    "ar": "es",
+    "co": "es",
+    "cl": "es",
+    "it": "it",
+    "nl": "nl",
+    "pl": "pl",
+    "ua": "uk",
+    "ru": "ru",
+    "br": "pt",
+    "pt": "pt",
+    "jp": "ja",
+    "kr": "ko",
+    "cn": "zh",
+    "tw": "zh",
 }
 
-OG_TAG_RE = re.compile(
-    r'<meta\s+property="og:(?:title|image)"\s+content="[^"]*"\s*/?>',
-    re.IGNORECASE,
-)
-CALLBACK_RE = re.compile(
-    r"AF_initDataCallback\(\{[^{}]*?key:\s*'ds:\d+'.*?,\s*sideChannel:\s*\{\}\}\);",
-    re.DOTALL,
-)
+API_KEY_RE = re.compile(r"AIzaSy[A-Za-z0-9_-]{33}")
 
 
 def fetch_page(app_id: str, country: str) -> str:
@@ -69,12 +92,8 @@ def fetch_page(app_id: str, country: str) -> str:
         return resp.read().decode("utf-8", errors="replace")
 
 
-def trim(html: str) -> str:
-    og_tags = OG_TAG_RE.findall(html)
-    callbacks = CALLBACK_RE.findall(html)
-    head = "\n".join(og_tags)
-    body = "\n".join(f"<script>{cb}</script>" for cb in callbacks)
-    return f"<!doctype html>\n<html><head>\n{head}\n</head><body>\n{body}\n</body></html>\n"
+def sanitise(html: str) -> str:
+    return API_KEY_RE.sub("<REDACTED-API-KEY>", html)
 
 
 def main() -> int:
@@ -87,15 +106,16 @@ def main() -> int:
 
     print(f"Fetching {app_id} from {country}...")
     html = fetch_page(app_id, country)
-    print(f"  raw HTML: {len(html):,} bytes")
+    print(f"  raw HTML:    {len(html):,} bytes")
 
-    trimmed = trim(html)
-    print(f"  trimmed:  {len(trimmed):,} bytes")
+    sanitised = sanitise(html)
+    redacted = len(API_KEY_RE.findall(html))
+    print(f"  sanitised:   {len(sanitised):,} bytes ({redacted} API keys redacted)")
 
     safe_app_id = app_id.replace(".", "_")
     out = FIXTURES_DIR / f"play_{safe_app_id}_{country}.html"
-    out.write_text(trimmed)
-    print(f"  wrote:    {out.relative_to(REPO_ROOT)}")
+    out.write_text(sanitised)
+    print(f"  wrote:       {out.relative_to(REPO_ROOT)}")
     return 0
 
 

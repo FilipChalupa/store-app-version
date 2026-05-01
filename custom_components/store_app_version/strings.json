@@ -45,5 +45,11 @@
         "name": "Refresh now"
       }
     }
+  },
+  "issues": {
+    "fetch_failed": {
+      "title": "Couldn't fetch {app_id} from {platform}",
+      "description": "Home Assistant couldn't fetch metadata for **{app_id}** in **{country}** from {platform}. The integration will keep retrying. Common causes:\n\n- The app isn't published in this country\n- The identifier (numeric ID, bundle ID, or package name) is wrong\n- {platform} changed its response format and the parser needs updating\n\nLast error: `{error}`"
+    }
   }
 }

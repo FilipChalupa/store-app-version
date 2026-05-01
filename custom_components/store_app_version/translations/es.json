@@ -45,5 +45,11 @@
         "name": "Actualizar ahora"
       }
     }
+  },
+  "issues": {
+    "fetch_failed": {
+      "title": "No se pudo obtener {app_id} de {platform}",
+      "description": "Home Assistant no pudo obtener los metadatos de **{app_id}** en **{country}** desde {platform}. La integración seguirá intentándolo. Causas comunes:\n\n- La aplicación no está publicada en este país\n- El identificador (ID numérico, bundle ID o nombre del paquete) es incorrecto\n- {platform} cambió el formato de respuesta y el parser necesita actualizarse\n\nÚltimo error: `{error}`"
+    }
   }
 }

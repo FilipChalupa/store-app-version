@@ -1,4 +1,5 @@
 """Tests for the App Store iTunes Lookup mapping."""
+
 from __future__ import annotations
 
 import json
@@ -42,10 +43,12 @@ def test_missing_fields_become_none() -> None:
 
 
 def test_icon_prefers_512_over_100() -> None:
-    parsed = parse_itunes_lookup_item({
-        "artworkUrl100": "https://example/100.png",
-        "artworkUrl512": "https://example/512.png",
-    })
+    parsed = parse_itunes_lookup_item(
+        {
+            "artworkUrl100": "https://example/100.png",
+            "artworkUrl512": "https://example/512.png",
+        }
+    )
     assert parsed["icon"] == "https://example/512.png"
 
 

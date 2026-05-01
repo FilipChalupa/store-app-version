@@ -5,6 +5,7 @@ it requests an immediate refresh of the coordinator instead of waiting
 for the next scheduled poll. Useful for testing, ad-hoc verification,
 or wiring into automations.
 """
+
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity

@@ -5,12 +5,14 @@ inside ``AF_initDataCallback({key: 'ds:N', ..., data: <JSON>});`` blocks.
 The shape of those blocks changes between redesigns, so this parser
 locates fields by content-based heuristics rather than fixed JSON paths.
 """
+
 from __future__ import annotations
 
 import html as _html
 import json
 import re
-from typing import Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 PLAY_STORE_URL = "https://play.google.com/store/apps/details"
 
@@ -26,15 +28,15 @@ _DATE_RE = re.compile(
 )
 _INSTALLS_RE = re.compile(r"^[\d\s,. ]+\+\s*$")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
-_OG_TITLE_RE = re.compile(
-    r'<meta\s+property="og:title"\s+content="([^"]*)"', re.IGNORECASE
-)
-_OG_IMAGE_RE = re.compile(
-    r'<meta\s+property="og:image"\s+content="([^"]*)"', re.IGNORECASE
-)
+_OG_TITLE_RE = re.compile(r'<meta\s+property="og:title"\s+content="([^"]*)"', re.IGNORECASE)
+_OG_IMAGE_RE = re.compile(r'<meta\s+property="og:image"\s+content="([^"]*)"', re.IGNORECASE)
 _DEV_LINK_RE = re.compile(
     r'href="(?:/store/apps/dev(?:eloper)?\?id=)[^"]+"[^>]*>([^<]+)</a>',
     re.IGNORECASE,
+)
+_JSON_LD_RE = re.compile(
+    r'<script[^>]*type="application/ld\+json"[^>]*>([^<]+)</script>',
+    re.IGNORECASE | re.DOTALL,
 )
 _TITLE_SUFFIX_SEPARATORS = (" – ", " - ", " — ")
 _MIN_OS_LABELS = (
@@ -51,7 +53,8 @@ _MIN_OS_LABELS = (
     "Потребує Android",
 )
 _RELEASED_LABELS = (
-    "Vydáno dne", "Released on",
+    "Vydáno dne",
+    "Released on",
     "Veröffentlicht am",
     "Date de publication",
     "Fecha de lanzamiento",
@@ -61,7 +64,9 @@ _RELEASED_LABELS = (
     "Дата випуску",
 )
 _UPDATED_LABELS = (
-    "Aktualizováno dne", "Updated on",
+    "Datum aktualizace",
+    "Aktualizováno dne",
+    "Updated on",
     "Aktualisiert am",
     "Date de mise à jour",
     "Fecha de actualización",
@@ -91,17 +96,25 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
     if not _walk_match(all_data, lambda s: s == app_id):
         return None
 
+    json_ld = _parse_json_ld(html) or {}
+
     return {
         "version": _find_version(all_data),
         "name": _extract_og_title(html) or _find_title(all_data, app_id),
-        "developer": _find_developer(all_data) or _extract_developer_html(html),
+        "developer": (
+            _find_developer(all_data)
+            or _extract_developer_html(html)
+            or _extract_developer_from_json_ld(json_ld)
+        ),
         "release_notes": _find_release_notes(all_data),
         "min_os_version": (
             _find_min_android(all_data) or _extract_label_value(html, _MIN_OS_LABELS)
         ),
         "size_bytes": None,
-        "rating": _find_rating(all_data),
-        "rating_count": _find_rating_count(all_data),
+        "rating": _find_rating(all_data) or _extract_rating_from_json_ld(json_ld),
+        "rating_count": (
+            _find_rating_count(all_data) or _extract_rating_count_from_json_ld(json_ld)
+        ),
         "url": f"https://play.google.com/store/apps/details?id={app_id}",
         "icon": _extract_og_image(html) or _find_icon(all_data),
         "released": (
@@ -111,6 +124,51 @@ def parse_play_store_html(html: str, app_id: str) -> dict[str, Any] | None:
         ),
         "installs": _find_installs(all_data),
     }
+
+
+def _parse_json_ld(html: str) -> dict[str, Any] | None:
+    """Extract the SoftwareApplication JSON-LD block from the page."""
+    for match in _JSON_LD_RE.finditer(html):
+        try:
+            data = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and data.get("@type") == "SoftwareApplication":
+            return data
+    return None
+
+
+def _extract_developer_from_json_ld(json_ld: dict[str, Any]) -> str | None:
+    author = json_ld.get("author")
+    if isinstance(author, dict):
+        name = author.get("name")
+        if isinstance(name, str) and name:
+            return name
+    elif isinstance(author, str) and author:
+        return author
+    return None
+
+
+def _extract_rating_from_json_ld(json_ld: dict[str, Any]) -> float | None:
+    rating = json_ld.get("aggregateRating")
+    if isinstance(rating, dict):
+        value = rating.get("ratingValue")
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _extract_rating_count_from_json_ld(json_ld: dict[str, Any]) -> int | None:
+    rating = json_ld.get("aggregateRating")
+    if isinstance(rating, dict):
+        count = rating.get("ratingCount")
+        try:
+            return int(count) if count is not None else None
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def _extract_og_title(html: str) -> str | None:
@@ -174,9 +232,7 @@ def _extract_label_value(html: str, labels: tuple[str, ...]) -> str | None:
     """
     for label in labels:
         pattern = re.compile(
-            r">"
-            + re.escape(label)
-            + r"</[^>]+>(?:\s*<[^>]+>)+([^<]{1,200})<",
+            r">" + re.escape(label) + r"</[^>]+>(?:\s*<[^>]+>)+([^<]{1,200})<",
             re.IGNORECASE,
         )
         match = pattern.search(html)
@@ -250,16 +306,13 @@ def _find_version(metadata: Any) -> str | None:
             if _VERSION_RE.match(node):
                 candidates.append((node, ancestor_strings))
         elif isinstance(node, list):
-            new_ancestors = (
-                ancestor_strings + [x for x in node if isinstance(x, str)]
-            )[-30:]
+            new_ancestors = (ancestor_strings + [x for x in node if isinstance(x, str)])[-30:]
             for item in node:
                 walk(item, new_ancestors)
         elif isinstance(node, dict):
-            new_ancestors = (
-                ancestor_strings
-                + [v for v in node.values() if isinstance(v, str)]
-            )[-30:]
+            new_ancestors = (ancestor_strings + [v for v in node.values() if isinstance(v, str)])[
+                -30:
+            ]
             for value in node.values():
                 walk(value, new_ancestors)
 
@@ -301,9 +354,7 @@ def _find_title(metadata: Any, app_id: str) -> str | None:
 def _find_developer(metadata: Any) -> str | None:
     """Developer name lives in an array adjacent to a /store/apps/dev link."""
     for arr in _walk_arrays(metadata):
-        has_dev_link = any(
-            isinstance(x, str) and "store/apps/dev" in x for x in arr
-        )
+        has_dev_link = any(isinstance(x, str) and "store/apps/dev" in x for x in arr)
         if not has_dev_link:
             continue
         for value in arr:
@@ -332,10 +383,7 @@ def _find_release_notes(metadata: Any) -> str | None:
     can distinguish the description from release notes); otherwise the
     single match is almost always the description and would be misleading.
     """
-    htmlish = [
-        s for s in _walk_strings(metadata)
-        if "<br" in s or "<p>" in s or "</p>" in s
-    ]
+    htmlish = [s for s in _walk_strings(metadata) if "<br" in s or "<p>" in s or "</p>" in s]
     if len(htmlish) < 2:
         return None
     htmlish.sort(key=len)
@@ -390,9 +438,7 @@ def _find_rating(metadata: Any) -> float | None:
 def _find_rating_count(metadata: Any) -> int | None:
     """Rating count is a large integer alongside the rating float."""
     for arr in _walk_arrays(metadata):
-        has_rating_float = any(
-            isinstance(x, float) and 0 < x <= 5 for x in arr
-        )
+        has_rating_float = any(isinstance(x, float) and 0 < x <= 5 for x in arr)
         if not has_rating_float:
             continue
         for value in arr:

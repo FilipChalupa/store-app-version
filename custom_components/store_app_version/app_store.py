@@ -4,6 +4,7 @@ Pure helpers for converting an iTunes Lookup API response into our
 internal metadata dict. Kept separate from the coordinator so it can be
 unit-tested without HTTP.
 """
+
 from __future__ import annotations
 
 from typing import Any

@@ -1,4 +1,5 @@
 """Sensor platform for Store App Version."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -38,9 +39,7 @@ async def async_setup_entry(
     )
 
 
-class StoreAppVersionSensor(
-    CoordinatorEntity[StoreAppVersionCoordinator], RestoreSensor
-):
+class StoreAppVersionSensor(CoordinatorEntity[StoreAppVersionCoordinator], RestoreSensor):
     """Sensor exposing the current store version of an app."""
 
     _attr_has_entity_name = True
@@ -100,9 +99,7 @@ class StoreAppVersionSensor(
         }
 
 
-class StoreAppLastRefreshSensor(
-    CoordinatorEntity[StoreAppVersionCoordinator], SensorEntity
-):
+class StoreAppLastRefreshSensor(CoordinatorEntity[StoreAppVersionCoordinator], SensorEntity):
     """Diagnostic sensor exposing the last successful fetch timestamp."""
 
     _attr_has_entity_name = True

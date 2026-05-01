@@ -45,5 +45,11 @@
         "name": "Actualiser maintenant"
       }
     }
+  },
+  "issues": {
+    "fetch_failed": {
+      "title": "Impossible de récupérer {app_id} depuis {platform}",
+      "description": "Home Assistant n'a pas pu récupérer les métadonnées pour **{app_id}** dans **{country}** depuis {platform}. L'intégration continuera à réessayer. Causes courantes :\n\n- L'application n'est pas publiée dans ce pays\n- L'identifiant (ID numérique, bundle ID ou nom de package) est incorrect\n- {platform} a changé son format de réponse et le parseur doit être mis à jour\n\nDernière erreur : `{error}`"
+    }
   }
 }

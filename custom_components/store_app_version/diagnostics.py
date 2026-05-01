@@ -5,6 +5,7 @@ integration entry. Dumps the config entry, the coordinator's last
 fetched data, and the last update outcome — enough to debug "the
 sensor is unknown / wrong" reports without asking users for logs.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -19,9 +20,7 @@ from .coordinator import StoreAppVersionCoordinator
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
-    coordinator: StoreAppVersionCoordinator | None = hass.data.get(DOMAIN, {}).get(
-        entry.entry_id
-    )
+    coordinator: StoreAppVersionCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
 
     diagnostics: dict[str, Any] = {
         "entry": {
@@ -41,9 +40,7 @@ async def async_get_config_entry_diagnostics(
         "app_id": coordinator.app_id,
         "country": coordinator.country,
         "update_interval_seconds": (
-            coordinator.update_interval.total_seconds()
-            if coordinator.update_interval
-            else None
+            coordinator.update_interval.total_seconds() if coordinator.update_interval else None
         ),
         "last_update_success": coordinator.last_update_success,
         "last_successful_fetch": (
@@ -52,9 +49,7 @@ async def async_get_config_entry_diagnostics(
             else None
         ),
         "last_exception": (
-            repr(coordinator.last_exception)
-            if coordinator.last_exception
-            else None
+            repr(coordinator.last_exception) if coordinator.last_exception else None
         ),
         "data": coordinator.data,
     }

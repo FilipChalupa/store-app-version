@@ -45,5 +45,11 @@
         "name": "Jetzt aktualisieren"
       }
     }
+  },
+  "issues": {
+    "fetch_failed": {
+      "title": "{app_id} konnte nicht aus {platform} abgerufen werden",
+      "description": "Home Assistant konnte keine Metadaten für **{app_id}** in **{country}** aus {platform} abrufen. Die Integration versucht es weiter. Häufige Ursachen:\n\n- Die App ist in diesem Land nicht veröffentlicht\n- Der Identifier (numerische ID, Bundle-ID oder Paketname) ist falsch\n- {platform} hat das Antwortformat geändert und der Parser muss aktualisiert werden\n\nLetzter Fehler: `{error}`"
+    }
   }
 }

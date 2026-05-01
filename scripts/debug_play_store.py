@@ -13,6 +13,7 @@ Examples:
     python scripts/debug_play_store.py com.google.android.youtube us
     python scripts/debug_play_store.py com.kilomayo.tv.application cz
 """
+
 from __future__ import annotations
 
 import json
@@ -27,19 +28,52 @@ sys.path.insert(0, str(REPO_ROOT / "custom_components" / "store_app_version"))
 import play_store  # noqa: E402
 
 COUNTRY_TO_LANG = {
-    "us": "en", "gb": "en", "ca": "en", "au": "en", "ie": "en", "nz": "en",
-    "in": "en", "sg": "en", "za": "en",
-    "cz": "cs", "sk": "sk",
-    "de": "de", "at": "de", "ch": "de",
-    "fr": "fr", "be": "fr", "lu": "fr",
-    "es": "es", "mx": "es", "ar": "es", "co": "es", "cl": "es",
-    "it": "it", "nl": "nl", "pl": "pl",
-    "ru": "ru", "ua": "uk",
-    "br": "pt", "pt": "pt",
-    "jp": "ja", "kr": "ko", "cn": "zh", "tw": "zh",
-    "tr": "tr", "se": "sv", "no": "no", "dk": "da", "fi": "fi",
-    "hu": "hu", "ro": "ro", "bg": "bg", "gr": "el", "il": "he",
-    "id": "id", "th": "th", "vn": "vi",
+    "us": "en",
+    "gb": "en",
+    "ca": "en",
+    "au": "en",
+    "ie": "en",
+    "nz": "en",
+    "in": "en",
+    "sg": "en",
+    "za": "en",
+    "cz": "cs",
+    "sk": "sk",
+    "de": "de",
+    "at": "de",
+    "ch": "de",
+    "fr": "fr",
+    "be": "fr",
+    "lu": "fr",
+    "es": "es",
+    "mx": "es",
+    "ar": "es",
+    "co": "es",
+    "cl": "es",
+    "it": "it",
+    "nl": "nl",
+    "pl": "pl",
+    "ru": "ru",
+    "ua": "uk",
+    "br": "pt",
+    "pt": "pt",
+    "jp": "ja",
+    "kr": "ko",
+    "cn": "zh",
+    "tw": "zh",
+    "tr": "tr",
+    "se": "sv",
+    "no": "no",
+    "dk": "da",
+    "fi": "fi",
+    "hu": "hu",
+    "ro": "ro",
+    "bg": "bg",
+    "gr": "el",
+    "il": "he",
+    "id": "id",
+    "th": "th",
+    "vn": "vi",
 }
 
 

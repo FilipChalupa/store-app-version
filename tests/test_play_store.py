@@ -1,11 +1,11 @@
 """Tests for the Google Play Store HTML parser."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import play_store
+import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -13,6 +13,11 @@ FIXTURES = Path(__file__).parent / "fixtures"
 @pytest.fixture(scope="module")
 def kilomayo_html() -> str:
     return (FIXTURES / "play_com_kilomayo_tv_application_cz.html").read_text()
+
+
+@pytest.fixture(scope="module")
+def youtube_html() -> str:
+    return (FIXTURES / "play_com_google_android_youtube_us.html").read_text()
 
 
 def test_returns_none_when_no_callback_blocks() -> None:
@@ -23,7 +28,7 @@ def test_returns_none_when_no_callback_blocks() -> None:
 def test_returns_none_when_app_id_not_on_page() -> None:
     html = (
         "AF_initDataCallback({key: 'ds:0', isError: false, hash: '1', "
-        "data:[null,\"other.app.id\"], sideChannel: {}});"
+        'data:[null,"other.app.id"], sideChannel: {}});'
     )
     assert play_store.parse_play_store_html(html, "missing.app") is None
 
@@ -57,14 +62,74 @@ def test_kilomayo_url(kilomayo_html: str) -> None:
     )
 
 
+def test_kilomayo_developer_from_json_ld(kilomayo_html: str) -> None:
+    """Developer falls back to JSON-LD ``author.name`` when not in raw HTML."""
+    result = play_store.parse_play_store_html(kilomayo_html, "com.kilomayo.tv.application")
+    assert result is not None
+    assert result["developer"] == "KiloMayo"
+
+
+def test_youtube_basics(youtube_html: str) -> None:
+    """Popular app — basic identity fields all populate."""
+    result = play_store.parse_play_store_html(youtube_html, "com.google.android.youtube")
+    assert result is not None
+    assert result["name"] == "YouTube"
+    assert result["developer"] == "Google LLC"
+    assert result["url"].endswith("=com.google.android.youtube")
+
+
+def test_youtube_version_is_real(youtube_html: str) -> None:
+    """Should be 3-segment app version, not a 2-segment Android requirement."""
+    result = play_store.parse_play_store_html(youtube_html, "com.google.android.youtube")
+    assert result is not None
+    assert result["version"] is not None
+    assert play_store._VERSION_RE.match(result["version"])
+    assert result["version"].count(".") >= 2
+
+
+def test_youtube_rating_from_json_ld(youtube_html: str) -> None:
+    """Rating + count come from the JSON-LD aggregateRating block."""
+    result = play_store.parse_play_store_html(youtube_html, "com.google.android.youtube")
+    assert result is not None
+    assert isinstance(result["rating"], float)
+    assert 0 < result["rating"] <= 5
+    assert isinstance(result["rating_count"], int)
+    assert result["rating_count"] > 1_000_000  # YouTube has hundreds of millions
+
+
+def test_youtube_installs(youtube_html: str) -> None:
+    result = play_store.parse_play_store_html(youtube_html, "com.google.android.youtube")
+    assert result is not None
+    assert result["installs"] is not None
+    assert "+" in result["installs"]
+
+
+def test_youtube_released(youtube_html: str) -> None:
+    """`released` comes from the rendered "Updated on" label."""
+    result = play_store.parse_play_store_html(youtube_html, "com.google.android.youtube")
+    assert result is not None
+    assert result["released"] is not None
+    # Format like "Apr 25, 2026" — let date regex confirm it's date-shaped.
+    assert play_store._DATE_RE.search(result["released"])
+
+
 def test_kilomayo_keys(kilomayo_html: str) -> None:
     """Result schema: every documented attribute key must be present (value
     may be None for fields the heuristics couldn't extract)."""
     result = play_store.parse_play_store_html(kilomayo_html, "com.kilomayo.tv.application")
     assert result is not None
     expected_keys = {
-        "version", "name", "developer", "release_notes", "min_os_version",
-        "size_bytes", "rating", "rating_count", "url", "icon", "released",
+        "version",
+        "name",
+        "developer",
+        "release_notes",
+        "min_os_version",
+        "size_bytes",
+        "rating",
+        "rating_count",
+        "url",
+        "icon",
+        "released",
         "installs",
     }
     assert set(result) == expected_keys

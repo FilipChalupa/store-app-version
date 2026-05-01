@@ -45,5 +45,11 @@
         "name": "Načíst nyní"
       }
     }
+  },
+  "issues": {
+    "fetch_failed": {
+      "title": "Nepodařilo se načíst {app_id} z {platform}",
+      "description": "Home Assistantu se nepodařilo načíst metadata pro **{app_id}** v zemi **{country}** ze storu {platform}. Integrace bude zkoušet dál. Časté příčiny:\n\n- Aplikace není v dané zemi publikovaná\n- Identifikátor (číselné ID, bundle ID nebo package name) je špatně\n- {platform} změnil formát odpovědi a parser potřebuje aktualizovat\n\nPoslední chyba: `{error}`"
+    }
   }
 }
